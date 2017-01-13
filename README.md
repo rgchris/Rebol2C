@@ -1,2 +1,2 @@
-# Scripts-For-Rebol-2
-A collection of scripts for Rebol 2
+# Scripts for Rebol 2
+A collection of scripts for Rebol 2. More to follow...
