@@ -1,9 +1,9 @@
 Rebol [
 	Title: "cURL"
 	Author: "Christopher Ross-Gill"
-	Date: 21-Oct-2012
+	Date: 15-Jan-2017
 	File: %curl.r
-	Version: 0.1.2
+	Version: 0.1.4
 	Needs: [2.7.7 shell]
 	Purpose: "Rebol wrapper for cURL command."
 	Rights: http://opensource.org/licenses/Apache-2.0
@@ -11,6 +11,8 @@ Rebol [
 	Name: 'rgchris.altjson
 	Exports: [load-json to-json]
 	History: [
+		15-Jan-2017 0.1.4 "Fix /BINARY mode"
+		15-Jan-2017 0.1.3 "Added /LEGACY Refinement; Binary Uploads"
 		21-Oct-2012 0.1.2 "First Published Version"
 	]
 	Notes: [
@@ -68,6 +70,7 @@ curl: use [user-agent form-headers enquote][
 		err [string! none!] "String to contain error"
 		/timeout "Specify a time limit"
 		time [time! none!] "Time limit"
+		/legacy "Use HTTP/1.0"
 		/local command code
 	][
 		out: any [out copy ""]
@@ -77,6 +80,7 @@ curl: use [user-agent form-headers enquote][
 			keep "curl -s"
 
 			case/all [
+				legacy [keep "0"]
 				full [keep "i"]
 				fail [keep "f"]
 				not secure [keep "k"]
@@ -85,10 +89,10 @@ curl: use [user-agent form-headers enquote][
 				time [keep " -m " keep to integer! time]
 				data [
 					either file? data [
-						keep reduce [" -d @" form data]
+						keep reduce [" --data-binary @" form data]
 						data: ""
 					][
-						keep " -d @-"
+						keep " --data-binary @-"
 					]
 				]
 				all [name pass][keep " -u " keep enquote [name ":" pass]]
@@ -111,7 +115,7 @@ curl: use [user-agent form-headers enquote][
 		net-utils/net-log reform ["cURL Response Code:" code]
 
 		switch/default code [
-			0 18 [out]
+			0 18 [either binary [as-binary out][out]]
 			1 [
 				if empty? trim/head/tail err [
 					err: "Unsupported protocol. This build of curl has no support for this protocol."
