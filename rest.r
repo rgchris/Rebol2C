@@ -1,10 +1,10 @@
 Rebol [
 	Title: "REST-Friendly HTTP Protocol"
 	Author: "Christopher Ross-Gill"
-	Date: 12-Jan-2017
+	Date: 5-Feb-2017
 	Home: http://www.ross-gill.com/page/REST_Protocol
 	File: %rest.r
-	Version: 0.1.4
+	Version: 0.1.5
 	Purpose: {
 		An elementary HTTP protocol allowing more versatility when developing Web
 		Services clients.
@@ -13,6 +13,7 @@ Rebol [
 	Type: 'module
 	Name: 'rgchris.rest
 	History: [
+		05-Feb-2017 0.1.5 "Correct usage of CURL's /INTO refinement"
 		12-Jan-2017 0.1.4 "Tidy up of OAuth portion"
 		30-Oct-2012 0.1.3 "Use CURL in place of native TCP; Added OAuth"
 		21-Aug-2010 0.1.2 "Submitted to Rebol.org"
