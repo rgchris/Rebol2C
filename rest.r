@@ -165,7 +165,7 @@ system/schemes/rest/handler: use [prepare transcribe execute][
 	]
 
 	execute: func [port [port!]][
-		curl/full/method/header/with/timeout/to ; url action headers content response
+		curl/full/method/header/with/timeout/into ; url action headers content response
 			port/locals/request/url
 			port/locals/request/action
 			port/locals/request/headers
