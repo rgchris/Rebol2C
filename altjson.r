@@ -1,16 +1,17 @@
 Rebol [
 	Title: "JSON Parser/Encoder for Rebol 2"
 	Author: "Christopher Ross-Gill"
-	Date: 3-May-2016
+	Date: 6-Feb-2017
 	Home: http://www.ross-gill.com/page/JSON_and_Rebol
 	File: %altjson.r
-	Version: 0.3.7
+	Version: 0.3.8
 	Purpose: "De/Serialize a JSON string to Rebol data."
 	Rights: http://opensource.org/licenses/Apache-2.0
 	Type: 'module
 	Name: 'rgchris.altjson
 	Exports: [load-json to-json]
 	History: [
+		06-Feb-2017 0.3.8 "Fix Unicode -> UTF-8 decoding"
 		02-May-2016 0.3.7 "Support for /, : and , characters in JSON object keys"
 		22-Sep-2015 0.3.6 "Sync with v0.3.6 for Rebol 3"
 		07-Jul-2014 0.3.0 "Initial support for JSONP"
@@ -77,24 +78,49 @@ load-json: use [
 		hx: charset "0123456789ABCDEFabcdef"
 		mp: [#"^"" "^"" #"\" "\" #"/" "/" #"b" "^H" #"f" "^L" #"r" "^M" #"n" "^/" #"t" "^-"]
 
-		decode: use [ch mk escape to-utf-char][
-			to-utf-char: use [os fc en][
-				os: [0 192 224 240 248 252]
-				fc: [1 64 4096 262144 16777216 1073741824]
-				en: [127 2047 65535 2097151 67108863 2147483647]
+		decode: use [ch mk escape encode-utf8][
+			encode-utf8: func [
+				"Encode a code point in UTF-8 format" 
+				char [integer!] "Unicode code point"
+			][
+				as-string to binary! reduce case [
+					char <= 127 [[char]]
 
-				func [int [integer!] /local char][
-					repeat ln 6 [
-						if int <= en/:ln [
-							char: reduce [os/:ln + to integer! (int / fc/:ln)]
-							repeat ps ln - 1 [
-								insert next char (to integer! int / fc/:ps) // 64 + 128
-							]
-							break
-						]
+					; U+0080 - U+07FF
+					char <= 2047 [[
+						char and 1984 / 64 + 192 
+						char and 63 + 128
+					]]
+
+					any [
+						; http://www.unicode.org/faq/private_use.html#nonchar4
+						; invalid U+D800 - U+DFFF ; UTF-16 Surrogates
+						all [char >= 55296 char <= 57343]
+						; invalid U+FDD0 - U+FDEF ; Noncharacters
+						all [char >= 64976 char <= 65007]
+						; invalid U+nFFFE - U+nFFFF ; Noncharacters
+						equal? 65534 char and 65534
+						equal? 65535 char and 65535
+					][
+						[239 191 189]
 					]
 
-					to string! to binary! char
+					; U+0800 - U+FFFD ; upper U+FFFF for tests
+					char <= 65535 [[
+						char and 61440 / 4096 + 224 
+						char and 4032 / 64 + 128 
+						char and 63 + 128
+					]]
+
+					; U+010000 - U+10FFFF
+					char <= 1114111 [[
+						char and 1835008 / 262144 + 240 
+						char and 258048 / 4096 + 128 
+						char and 4032 / 64 + 128 
+						char and 63 + 128
+					]]
+
+					true [[239 191 189]] ; Unknown codepoint
 				]
 			]
 
@@ -102,7 +128,7 @@ load-json: use [
 				mk: #"\" [
 					  es (mk: change/part mk select mp mk/2 2)
 					| #"u" copy ch 4 hx (
-						mk: change/part mk to-utf-char to integer! to issue! ch 6
+						mk: change/part mk encode-utf8 to integer! to issue! ch 6
 					)
 				] :mk
 			]
@@ -230,13 +256,125 @@ to-json: use [
 	emit: func [data][repend json data]
 	emits: func [data][emit {"} emit data emit {"}]
 
-	escape: use [mp ch es encode][
+	escape: use [mp ch encode utf-8 decode-utf8][
 		mp: [#"^/" "\n" #"^M" "\r" #"^-" "\t" #"^"" "\^"" #"\" "\\" #"/" "\/"]
-		ch: complement es: charset extract mp 2
-		encode: func [here][change/part here select mp here/1 1]
+		ch: complement charset compose [
+			{^@^A^B^C^D^E^F^G^H^K^L^M^N^O^P^Q^R^S^T^U^V^W^X^Y^Z^[^\^]^!^_}
+			(extract mp 2) #"^(80)" - #"^(FF)"
+		]
 
-		func [txt][
-			parse/all txt [any [txt: some ch | es (txt: encode txt) :txt]]
+		encode: func [here /local char][
+			char: any [
+				select mp here/1
+				either here/1 > 127 ["\uFFFD"][
+					join "\u" skip tail mold to-hex to integer! char -4
+				]
+			]
+			change/part here char 1
+		]
+
+		utf-8: use [utf-2 utf-3 utf-4 utf-b][
+			; probably need to adapt the rule from below...
+			utf-2: charset [#"^(C2)" - #"^(DF)"]
+			utf-3: charset [#"^(E0)" - #"^(EF)"]
+			utf-4: charset [#"^(F0)" - #"^(F4)"]
+			utf-b: charset [#"^(80)" - #"^(BF)"]
+
+			[utf-2 utf-b | utf-3 2 utf-b | utf-4 3 utf-b]
+		]
+
+		decode-utf8: use [
+			utf-2 utf-3 utf-3-low utf-4 utf-4-low utf-4-high utf-b
+			utf-x1 utf-x2 utf-x3 bounds out
+		][
+			; U+000080..U+0007FF _____________ C2..DF 80..BF
+			; U+000800..U+000FFF __________ E0 A0..BF 80..BF
+			; U+001000..U+00FFFF ______ E1..EF 80..BF 80..BF
+			; U+010000..U+03FFFF ___ F0 90..BF 80..BF 80..BF
+			; U+040000..U+0FFFFF F1..F3 80..BF 80..BF 80..BF
+			; U+100000..U+10FFFF ___ F4 80..8F 80..BF 80..BF
+			utf-2: charset [#"^(C2)" - #"^(DF)"]
+			utf-3-low: charset [#"^(A0)" - #"^(BF)"]
+			utf-3: charset [#"^(E1)" - #"^(EF)"]
+			utf-4-low: charset [#"^(90)" - #"^(BF)"]
+			utf-4-high: charset [#"^(80)" - #"^(8F)"]
+			utf-4: charset [#"^(F1)" - #"^(F3)"]
+			utf-b: charset [#"^(80)" - #"^(BF)"]
+
+			utf-x1: charset [#"^(A0)" - #"^(BF)"]
+			utf-x2: charset [#"^(90)" - #"^(AF)"]
+			utf-x3: charset [#"^(8F)" #"^(9F)" #"^(AF)" #"^(BF)"]
+
+			func [char [string! binary!] /strict][
+				bounds: [0 0]
+				out: -1
+				any [
+					all [
+						any [
+							parse/all char: as-binary char [
+								; Test for invalid sequences first
+								[
+									; invalid U+D800 - U+DFFF ; UTF-8 Surrogates
+									#"^(ED)" utf-x1 utf-b
+									|
+									; invalid U+FDD0 - U+FDEF ; ???
+									#"^(EF)" #"^(B7)" utf-x2
+									|
+									; invalid U+nFFFE - U+nFFFF ; Troublesome UTF-16 sequences
+									[#"^(EF)" | [#"^(F0)" | utf-4] utf-x3] #"^(BF)" [#"^(BE)" | #"^(BF)"]
+								]
+								|
+								utf-2 utf-b (
+									bounds: [127 2048]
+									out: char/1 xor 192 * 64
+									+ (char/2 xor 128)
+								)
+								| [
+									  #"^(E0)" utf-3-low utf-b (bounds: [2047 4096])
+									| utf-3 2 utf-b (bounds: [4095 65534])
+								] (
+									out: char/1 xor 224 * 4096
+									+ (char/2 xor 128 * 64)
+									+ (char/3 xor 128)
+								)
+								| [
+									  #"^(F0)" utf-4-low 2 utf-b (bounds: [65535 262144])
+									| utf-4 3 utf-b (bounds: [262143 1048576])
+									| #"^(F4)" utf-4-high 2 utf-b (bounds: [1048575 1114112])
+								] (
+									out: char/1 xor 240 * 262144
+									+ (char/2 xor 128 * 4096)
+									+ (char/3 xor 128 * 64)
+									+ (char/4 xor 128)
+								)
+							]
+							not strict
+						]
+						out > bounds/1
+						out < bounds/2
+						out
+					]
+					65533 ; Unknown character
+				]
+			]
+		]
+
+		encode-unicode: func [mark [string!] ext [string!] /local char][
+			either 65535 > char: decode-utf8 mark [
+				change/part mark join "\u" skip tail mold to-hex char -4 ext
+			][
+				ext
+			]
+		]
+
+		func [txt [string! binary!] /local ext][
+			parse/all txt [
+				any [
+					  txt: some ch
+					| utf-8 ext: (txt: encode-unicode txt ext) :txt
+					| skip (txt: encode txt) :txt
+				]
+			]
 			head txt
 		]
 	]
