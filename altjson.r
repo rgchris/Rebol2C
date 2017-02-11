@@ -129,7 +129,7 @@ load-json: use [
 				char: debase/base char 16
 				encode-utf8 65536
 					+ (shift/left 1023 and to integer! take/part char 2 10)
-					+ (1023 and probe to integer! probe char)
+					+ (1023 and to integer! char)
 			]
 
 			escape: [
@@ -380,7 +380,7 @@ to-json: use [
 			]
 
 			func [mark [string!] ext [string!] /local char][
-				change/part mark probe case [
+				change/part mark case [
 					65535 > char: decode-utf8 mark [
 						to-uchar char
 					]
