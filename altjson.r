@@ -1,16 +1,17 @@
 Rebol [
 	Title: "JSON Parser/Encoder for Rebol 2"
 	Author: "Christopher Ross-Gill"
-	Date: 6-Feb-2017
+	Date: 11-Feb-2017
 	Home: http://www.ross-gill.com/page/JSON_and_Rebol
 	File: %altjson.r
-	Version: 0.3.8
+	Version: 0.3.9
 	Purpose: "De/Serialize a JSON string to Rebol data."
 	Rights: http://opensource.org/licenses/Apache-2.0
 	Type: 'module
 	Name: 'rgchris.altjson
 	Exports: [load-json to-json]
 	History: [
+		11-Feb-2017 0.3.9 "Include support for decoding surrogate pairs (emoji)"
 		06-Feb-2017 0.3.8 "Fix Unicode -> UTF-8 decoding"
 		02-May-2016 0.3.7 "Support for /, : and , characters in JSON object keys"
 		22-Sep-2015 0.3.6 "Sync with v0.3.6 for Rebol 3"
@@ -78,7 +79,7 @@ load-json: use [
 		hx: charset "0123456789ABCDEFabcdef"
 		mp: [#"^"" "^"" #"\" "\" #"/" "/" #"b" "^H" #"f" "^L" #"r" "^M" #"n" "^/" #"t" "^-"]
 
-		decode: use [ch mk escape encode-utf8][
+		decode: use [ch mk escape encode-utf8 decode-surrogate][
 			encode-utf8: func [
 				"Encode a code point in UTF-8 format" 
 				char [integer!] "Unicode code point"
@@ -124,9 +125,23 @@ load-json: use [
 				]
 			]
 
+			decode-surrogate: func [char [string!]][
+				char: debase/base char 16
+				encode-utf8 65536
+					+ (shift/left 1023 and to integer! take/part char 2 10)
+					+ (1023 and probe to integer! probe char)
+			]
+
 			escape: [
 				mk: #"\" [
 					  es (mk: change/part mk select mp mk/2 2)
+					| #"u" copy ch [
+						#"d" [#"8" | #"9" | #"a" | #"b"] 2 hx
+						"\u" #"d" [#"c" | #"d" | #"e" | #"f"] 2 hx
+					] (
+						remove remove skip ch 4
+						mk: change/part mk decode-surrogate ch 12
+					) :mk
 					| #"u" copy ch 4 hx (
 						mk: change/part mk encode-utf8 to integer! to issue! ch 6
 					)
@@ -256,7 +271,7 @@ to-json: use [
 	emit: func [data][repend json data]
 	emits: func [data][emit {"} emit data emit {"}]
 
-	escape: use [mp ch encode utf-8 decode-utf8][
+	escape: use [mp ch encode utf-8 decode-utf8 encode-unicode][
 		mp: [#"^/" "\n" #"^M" "\r" #"^-" "\t" #"^"" "\^"" #"\" "\\" #"/" "\/"]
 		ch: complement charset compose [
 			{^@^A^B^C^D^E^F^G^H^K^L^M^N^O^P^Q^R^S^T^U^V^W^X^Y^Z^[^\^]^!^_}
@@ -359,11 +374,27 @@ to-json: use [
 			]
 		]
 
-		encode-unicode: func [mark [string!] ext [string!] /local char][
-			either 65535 > char: decode-utf8 mark [
-				change/part mark join "\u" skip tail mold to-hex char -4 ext
-			][
-				ext
+		encode-unicode: use [to-uchar][
+			to-uchar: func [char [integer!]][
+				rejoin ["\u" skip tail mold to-hex char -4]
+			]
+
+			func [mark [string!] ext [string!] /local char][
+				change/part mark probe case [
+					65535 > char: decode-utf8 mark [
+						to-uchar char
+					]
+
+					; Surrogate Pairs (emoji)
+					1114111 > char [
+						rejoin [
+							to-uchar 55296 or shift char and 65280 10
+							to-uchar char and 1023 or 56320
+						]
+					]
+
+					/else ["\uFFFD"] ; unknown char
+				] ext
 			]
 		]
 
@@ -443,7 +474,7 @@ to-json: use [
 	lookup: [
 		here: [get-word! | get-path!]
 		(change here reduce reduce [here/1])
-		end skip
+		end skip ; fail
 	]
 
 	comma: [(if not tail? here [emit ","])]
@@ -488,7 +519,7 @@ to-json: use [
 		"Convert a Rebol value to JSON string"
 		item [any-type!] "Rebol value to convert"
 	][
-		json: make string! ""
+		json: make string! 1024
 		if parse compose/only [(item)][here: value][json]
 	]
 ]
