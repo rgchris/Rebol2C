@@ -65,7 +65,7 @@ etsy: make object! [
 			<% if find credentials 'error [ %>
 			<p class="alert alert-danger">The credentials provided were not sufficient.</p>
 			<% ] %>
-			<p class="lead">First enter your Application credentials:</p>
+			<p class="lead">First enter your <a href="https://www.etsy.com/developers/your-apps">application credentials</a>:</p>
 			<form method="post" action="/request" class="form-horizontal">
 				<div class="form-group">
 					<label for="i-key" class="col-sm-3 control-label">Key</label>
@@ -73,7 +73,7 @@ etsy: make object! [
 						<%! ; build-tag notation
 							input value (credentials/consumer-key)
 							name "consumer-key" type "text"
-							id "i-key" placeholder "Key" class "form-control"
+							id "i-key" placeholder "Keystring" class "form-control"
 						 %>
 					</div>
 				</div>
@@ -83,7 +83,7 @@ etsy: make object! [
 						<%! ; build-tag notation
 							input value (credentials/consumer-secret)
 							name "consumer-secret" type "text"
-							id "i-secret" placeholder "Secret" class "form-control"
+							id "i-secret" placeholder "Shared Secret" class "form-control"
 						 %>
 					</div>
 				</div>
