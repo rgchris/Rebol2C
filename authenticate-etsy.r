@@ -132,7 +132,7 @@ etsy: make object! [
 		content
 	]
 
-	reject: func [reponse [object!] status [integer!] content [string! binary!]][
+	reject: func [response [object!] status [integer!] content [string! binary!]][
 		response/status: status
 		response/content: views/reject [content]
 		content
