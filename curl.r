@@ -8,8 +8,8 @@ Rebol [
 	Purpose: "Rebol wrapper for cURL command."
 	Rights: http://opensource.org/licenses/Apache-2.0
 	Type: 'module
-	Name: 'rgchris.altjson
-	Exports: [load-json to-json]
+	Name: 'rgchris.curl
+	Exports: [curl]
 	History: [
 		15-Jan-2017 0.1.4 "Fix /BINARY mode"
 		15-Jan-2017 0.1.3 "Added /LEGACY Refinement; Binary Uploads"
@@ -131,6 +131,7 @@ curl: use [user-agent form-headers enquote][
 			28 [throw make error! "Request timed out."]
 			50 [throw make error! "OS shell error."]
 			52 [throw make error! "The server didn't reply anything."]
+			56 [throw make error! "Failure with receiving network data."]
 		][
 			code: reform ["cURL Error Code" code trim/head/tail err]
 			throw make error! code
