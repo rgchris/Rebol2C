@@ -1,9 +1,9 @@
 Rebol [
 	Title: "Web Server Scheme for Rebol 2"
 	Author: "Christopher Ross-Gill"
-	Date: 6-Feb-2017
+	Date: 18-May-2018
 	File: %httpd.r
-	Version: 0.2.0
+	Version: 0.2.1
 	Purpose: "An elementary Web Server scheme for creating fast prototypes"
 	Rights: http://opensource.org/licenses/Apache-2.0
 	Type: 'module
@@ -312,7 +312,7 @@ set in system/schemes 'httpd make system/standard/port [
 					if response/location [
 						keep reform ["^/Location:" response/location]
 					]
-					keep "^/^/"
+					keep "^M^/"
 					keep response/content
 				] clear client/locals/wire
 			]
