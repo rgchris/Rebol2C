@@ -307,12 +307,12 @@ set in system/schemes 'httpd make system/standard/port [
 					]
 
 					keep reform ["HTTP/1.0" response/status select status-codes response/status]
-					keep reform ["^/Content-Type:" response/type]
-					keep reform ["^/Content-Length:" length? response/content]
+					keep reform ["^M^/Content-Type:" response/type]
+					keep reform ["^M^/Content-Length:" length? response/content]
 					if response/location [
-						keep reform ["^/Location:" response/location]
+						keep reform ["^M^/Location:" response/location]
 					]
-					keep "^M^/"
+					keep "^M^/^M^/"
 					keep response/content
 				] clear client/locals/wire
 			]
